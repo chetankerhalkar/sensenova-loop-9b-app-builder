@@ -1,0 +1,7 @@
+# Model files and build output stay outside the repo (C:\aick-live), but just in case:
+*.gguf
+logs/
+*.log
+build/
+.DS_Store
+Thumbs.db
