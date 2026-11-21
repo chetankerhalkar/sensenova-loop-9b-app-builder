@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AICK Live App Builder · local AI</title>
+<style>
+  :root{
+    --bg:#0b1120; --panel:#0F172A; --panel2:#152036; --line:#26334d; --text:#e8ebf2; --muted:#8b93a7;
+    --accent:#F08B55; --accent2:#6EE7B7; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+    --mono: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+  button,input,select,textarea{font:inherit;color:inherit}
+  input[type=checkbox],input[type=range]{accent-color:var(--accent)}
+  /* top bar */
+  header{display:flex;align-items:center;gap:18px;padding:10px 18px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,#0F172A,#1a1622)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  .logo{width:30px;height:30px;border-radius:9px;background:conic-gradient(from 200deg,var(--accent),var(--accent2),var(--accent));box-shadow:0 0 18px #F08B5566}
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:13px;white-space:nowrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .dot.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)} .dot.busy{background:var(--warn);box-shadow:0 0 10px var(--warn);animation:pulse 1s infinite} .dot.bad{background:var(--bad)}
+  @keyframes pulse{50%{opacity:.35}}
+  .stats{margin-left:auto;display:flex;gap:10px;align-items:stretch}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:4px 12px;min-width:86px;text-align:center}
+  .stat b{display:block;font-size:20px;line-height:1.15;font-variant-numeric:tabular-nums}
+  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .stat.big{border-color:#F08B5588;box-shadow:inset 0 0 0 1px #F08B5533}
+  .stat.big b{font-size:26px;color:var(--accent2)}
+  /* layout */
+  main{flex:1;display:grid;grid-template-columns:400px 1fr;min-height:0}
+  main.present{grid-template-columns:0 1fr}
+  main.present aside{display:none}
+  aside{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+  .scroll{overflow:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+  .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px}
+  .chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .chip{padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;text-align:left;font-size:13.5px;transition:.15s}
+  .chip:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .chip em{display:block;font-style:normal;color:var(--muted);font-size:11.5px}
+  textarea{width:100%;resize:vertical;background:#0e1118;border:1px solid var(--line);border-radius:10px;padding:10px 12px;outline:none}
+  textarea:focus{border-color:var(--accent)}
+  #prompt{min-height:220px;font-size:14.5px}
+  #feedback{min-height:64px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-weight:600}
+  .btn:hover{border-color:var(--accent2)}
+  .btn.primary{background:linear-gradient(135deg,#F08B55,#e0652b);border-color:transparent;color:#fff;flex:1;font-size:16px}
+  .btn.primary:hover{filter:brightness(1.1)}
+  .btn.danger{border-color:#ef444466;color:#fca5a5}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .toggles{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13.5px}
+  .toggles label{display:flex;align-items:center;gap:8px;cursor:pointer}
+  .toggles input[type=range]{width:100%}
+  .small{font-size:12.5px;color:var(--muted)}
+  .hist{display:flex;flex-direction:column;gap:6px}
+  .hist button{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:#0e1118;cursor:pointer;font-size:13px;text-align:left}
+  .hist button.on{border-color:var(--accent)}
+  .hist button span{color:var(--muted);white-space:nowrap}
+  .quick{display:flex;flex-wrap:wrap;gap:6px}
+  .quick button{font-size:12px;padding:5px 9px;border-radius:999px;border:1px solid var(--line);background:#0e1118;cursor:pointer}
+  .quick button:hover{border-color:var(--accent2)}
+  .imgprev{display:none;max-width:100%;border-radius:8px;border:1px solid var(--line)}
+  /* work area */
+  .work{display:grid;grid-template-columns:minmax(300px,38%) 1fr;min-height:0}
+  .work.preview-only{grid-template-columns:0 1fr}
+  .work.preview-only .codecol{display:none}
+  .codecol{display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0;background:#0a0c10}
+  .bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted);background:var(--panel)}
+  .bar b{color:var(--text)}
+  .bar .sp{flex:1}
+  .bar button{padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:12.5px;color:var(--text)}
+  .bar button:hover{border-color:var(--accent2)}
+  #think{display:none;max-height:28%;overflow:auto;margin:0;padding:10px 12px;font:12.5px/1.45 var(--mono);color:#b9a8ff;background:#100d1c;border-bottom:1px solid var(--line);white-space:pre-wrap}
+  #code{flex:1;overflow:auto;margin:0;padding:12px 14px;font:13px/1.5 var(--mono);color:#cfe3ff;white-space:pre-wrap;word-break:break-word}
+  .previewcol{display:flex;flex-direction:column;min-height:0;background:#06070a}
+  .framewrap{flex:1;position:relative;min-height:0}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+  .empty{position:absolute;inset:0;z-index:1;display:grid;place-items:center;text-align:center;color:var(--muted);background:radial-gradient(800px 400px at 50% 40%,#2a1a14,#06070a)}
+  .empty h1{font-size:44px;margin:0 0 6px;color:var(--text);letter-spacing:-.5px}
+  .empty p{margin:4px 0;font-size:17px}
+  .empty .kbd{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:6px;font:13px var(--mono)}
+  #errors{display:none;max-height:120px;overflow:auto;padding:8px 12px;font:12.5px/1.4 var(--mono);color:#fecaca;background:#2a0f12;border-top:1px solid #ef444466}
+  .writing-badge{position:absolute;top:12px;right:12px;padding:6px 12px;border-radius:999px;background:#000a;border:1px solid var(--warn);color:#fde68a;font-size:13px;display:none;z-index:2}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#111827;border:1px solid var(--line);padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;z-index:9}
+  .toast.show{opacity:1}
+  .settings{display:none;gap:8px}
+  .settings.show{display:flex}
+  .settings input{flex:1;background:#0e1118;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="logo"></div><div><span style="color:#F08B55">AICK</span> Live App Builder<small>prompt → working app · 100% on this PC</small></div></div>
+  <span class="pill" title="Server status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></span>
+  <span class="pill" id="modelPill" title="Model and context">model: —</span>
+  <div class="stats">
+    <div class="stat big"><b id="sTps">—</b><span>tokens / sec</span></div>
+    <div class="stat"><b id="sTok">0</b><span>tokens</span></div>
+    <div class="stat"><b id="sTime">0.0s</b><span>time</span></div>
+    <div class="stat"><b id="sTtft">—</b><span>1st token</span></div>
+    <div class="stat"><b id="sLines">0</b><span>lines</span></div>
+  </div>
+</header>
+
+<main id="main">
+  <aside>
+    <div class="scroll">
+      <div>
+        <div class="label">1 · Pick a build (or type your own)</div>
+        <div class="chips">
+          <button class="chip" data-preset="everyday">🧾 Everyday<em>Expense tracker + chart</em></button>
+          <button class="chip" data-preset="enterprise">🏢 Enterprise<em>Incident command center</em></button>
+          <button class="chip" data-preset="game">🎮 Game<em>Neon brick breaker</em></button>
+          <button class="chip" data-preset="chat">💬 Chat's pick<em>Idea from live chat</em></button>
+        </div>
+      </div>
+
+      <div>
+        <div class="label">2 · Prompt</div>
+        <textarea id="prompt" spellcheck="false" placeholder="Describe the app you want…"></textarea>
+        <div class="row" style="margin-top:6px">
+          <label class="btn" style="font-weight:500;font-size:13px">🖼️ Attach sketch<input id="img" type="file" accept="image/*" hidden></label>
+          <span class="small" id="imgName">optional · needs <code>-Vision</code></span>
+        </div>
+        <img id="imgPrev" class="imgprev" alt="">
+      </div>
+
+      <div class="toggles">
+        <label><input type="checkbox" id="optThink"> Show thinking</label>
+        <label><input type="checkbox" id="optLive" checked> Live layout preview</label>
+        <label style="display:block">Temperature <b id="tVal">0.6</b><input type="range" id="optTemp" min="0" max="1.2" step="0.1" value="0.6"></label>
+        <label style="display:block">Max tokens <b id="mVal">8192</b><input type="range" id="optMax" min="1024" max="16384" step="1024" value="8192"></label>
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="buildBtn">⚡ Build app</button>
+        <button class="btn danger" id="stopBtn" disabled>■ Stop</button>
+      </div>
+      <div class="small">Ctrl+Enter = build · Esc = stop</div>
+
+      <div>
+        <div class="label">3 · Improve the current app</div>
+        <div class="quick" id="quick">
+          <button data-fb="Fix every bug you can find and make sure all buttons work.">Fix bugs</button>
+          <button data-fb="Make it look more premium: better spacing, subtle gradients, smooth animations.">More polish</button>
+          <button data-fb="Make it fully mobile friendly.">Mobile</button>
+          <button data-fb="Add a dark/light theme toggle in the header.">Theme toggle</button>
+          <button id="fixErrBtn" data-fb="__errors__" style="display:none;border-color:#ef4444">🩹 Auto-fix errors</button>
+        </div>
+        <textarea id="feedback" placeholder="Tell the model what to change… e.g. make the ball faster each level" style="margin-top:8px"></textarea>
+        <button class="btn" id="improveBtn" style="width:100%;margin-top:8px" disabled>🔁 Improve current app</button>
+      </div>
+
+      <div>
+        <div class="label">Builds this session</div>
+        <div class="hist" id="hist"><span class="small">Nothing yet. Your first build shows up here.</span></div>
+      </div>
+
+      <div>
+        <div class="row"><button class="btn" id="settingsBtn" style="font-size:12.5px;padding:6px 10px">⚙ Server</button><span class="small" id="baseTxt"></span></div>
+        <div class="settings" id="settings" style="margin-top:6px"><input id="baseInput"><button class="btn" id="baseSave" style="padding:6px 10px">Save</button></div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="work" id="work">
+    <div class="codecol">
+      <div class="bar"><b>Code</b><span id="codeInfo">waiting</span><span class="sp"></span><button id="copyBtn">Copy</button></div>
+      <pre id="think"></pre>
+      <pre id="code"></pre>
+    </div>
+    <div class="previewcol">
+      <div class="bar"><b>Live app</b><span id="prevInfo">—</span><span class="sp"></span>
+        <button id="rerunBtn">↻ Restart app</button><button id="openBtn">↗ New tab</button><button id="saveBtn">⬇ Save .html</button>
+        <button id="codeToggle">⇔ Preview only</button><button id="presentBtn">⛶ Present</button></div>
+      <div class="framewrap">
+        <div class="writing-badge" id="writingBadge">✍️ model is writing…</div>
+        <div class="empty" id="empty"><div><h1>What should a 9B model build?</h1><p>Pick a build on the left, or paste an idea from the chat.</p><p>Everything runs on this GPU. No cloud, no API key.</p><p style="margin-top:14px"><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to build</p></div></div>
+        <iframe id="frame" sandbox="allow-scripts allow-forms allow-modals allow-pointer-lock allow-popups" title="Generated app"></iframe>
+      </div>
+      <div id="errors"></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ------------------------------------------------------------------ prompts */
+const SYSTEM = `You are a senior front-end engineer who builds polished, working web apps.
+Rules:
+- Reply with ONE complete HTML file and nothing else. Start with <!DOCTYPE html> and end with </html>.
+- Put all CSS in one <style> tag and all JavaScript in one <script> tag at the end of <body>.
+- No external files, CDNs, web fonts, images or network calls. Everything must work offline.
+- Use modern vanilla JavaScript. Draw charts and games with <canvas> or inline SVG.
+- Make it look professional: dark theme, clear spacing, rounded cards, smooth hover states, responsive layout.
+- Wrap any localStorage use in try/catch (the app may run in a sandbox).
+- Include realistic sample data so the app looks alive on first load.
+- Check that every element id used in JavaScript exists in the HTML.`;
+
+const PRESETS = {
+  everyday: `Build "PocketPilot", a personal expense tracker.
+- Header with the app name and the current month.
+- Form to add an expense: description, amount, category (Food, Rent, Travel, Shopping, Bills, Fun), date.
+- Summary cards: total spent, monthly budget (editable, default $2,000), money left, and a progress bar that turns orange at 80% and red over 100%.
+- A donut chart drawn on <canvas> showing spending by category, with a legend.
+- A list of expenses, newest first, with a delete button and a search box.
+- Start with 10 realistic sample expenses.
+- Everything updates instantly when I add or delete an expense.`,
+  enterprise: `Build "OpsPulse", an IT incident command center dashboard for a support team.
+- Top row of 4 KPI cards: open incidents, critical (P1), average time to resolve, SLA at risk.
+- A table of 15 sample incidents: ID, title, service, priority (P1-P4 colored badges), status (New, Investigating, Resolved), owner, and a live SLA countdown timer that turns red under 10 minutes.
+- Filters for priority, status and service, plus a search box.
+- Click a row to open a side panel with details, a timeline of updates, and buttons: Assign to me, Escalate, Resolve.
+- A bar chart on <canvas> showing open incidents by service.
+- A "New incident" button that opens a form and adds the incident to the table.
+- KPIs and the chart update when anything changes.`,
+  game: `Build "Neon Breaker", a brick breaker game on <canvas>.
+- Neon look: dark background, glowing paddle, ball and colorful bricks.
+- Control the paddle with the mouse or the Left/Right arrow keys. Space to launch the ball.
+- 6 rows of bricks; some need 2 hits (show cracks).
+- Score, lives (3) and level shown at the top. Clear all bricks to go to the next level with a faster ball.
+- Power-ups sometimes fall from broken bricks: wider paddle, multi-ball, slow ball.
+- Particle burst when a brick breaks, and a short screen shake when a life is lost.
+- Start screen, pause with P, and a Game Over screen with Restart.`,
+  chat: `Build "<APP NAME>", <one-line idea from the live chat>.
+- Must-have feature 1:
+- Must-have feature 2:
+- Must-have feature 3:
+- Start with realistic sample data so it looks alive.`
+};
+
+/* ------------------------------------------------------------------ state */
+const $ = s => document.querySelector(s);
+const saved = (() => { try { return localStorage.getItem("aick.base"); } catch { return null; } })();
+const state = {
+  base: saved || (location.protocol.startsWith("http") ? location.origin : "http://127.0.0.1:8080"),
+  model: "local", ctx: null, busy: false, ctrl: null,
+  history: [], current: null, errors: [], image: null, vision: null
+};
+const ERR_GUARD = '<script>(function(){try{window.localStorage.getItem("__t")}catch(e){var m={};try{Object.defineProperty(window,"localStorage",{configurable:true,value:{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}}})}catch(_){}}function s(x){try{parent.postMessage({__aick:1,error:String(x).slice(0,300)},"*")}catch(_){}}window.addEventListener("error",function(e){s((e.message||"Error")+(e.lineno?" (line "+e.lineno+")":""))});window.addEventListener("unhandledrejection",function(e){s("Promise: "+((e.reason&&e.reason.message)||e.reason))})})();<\/script>';
+
+/* ------------------------------------------------------------------ helpers */
+function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove("show"),2200); }
+function setStatus(kind, text){ $("#dot").className = "dot " + (kind||""); $("#statusText").textContent = text; }
+function slug(s){ return (s||"app").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40) || "app"; }
+function appName(prompt){ const m = prompt.match(/"([^"]{2,40})"/); return m ? m[1] : (prompt.split("\n")[0].replace(/^build\s+/i,"").slice(0,32) || "App"); }
+function fmtSecs(ms){ return (ms/1000).toFixed(1) + "s"; }
+
+function splitThink(text){
+  // models sometimes put reasoning inline as <think>...</think>
+  const open = text.indexOf("<think>");
+  if (open === -1) return { think: "", body: text };
+  const close = text.indexOf("</think>", open);
+  if (close === -1) return { think: text.slice(open + 7), body: "" };
+  return { think: text.slice(open + 7, close), body: text.slice(0, open) + text.slice(close + 8) };
+}
+function extractHtml(text){
+  let t = text;
+  const fence = t.match(/```(?:html)?\s*([\s\S]*?)(```|$)/i);
+  if (fence && /<(!doctype|html|head|body)/i.test(fence[1])) t = fence[1];
+  const start = t.search(/<!doctype html|<html/i);
+  if (start > 0) t = t.slice(start);
+  const end = t.toLowerCase().lastIndexOf("</html>");
+  if (end !== -1) t = t.slice(0, end + 7);
+  return t.trim();
+}
+function withGuard(html){
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, m => m + ERR_GUARD);
+  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, m => m + ERR_GUARD);
+  return ERR_GUARD + html;
+}
+function stripScripts(html){
+  return html.replace(/<script[\s\S]*?(<\/script>|$)/gi, "");
+}
+
+/* ------------------------------------------------------------------ server */
+async function ping(){
+  $("#baseTxt").textContent = state.base; $("#baseInput").value = state.base;
+  try {
+    const r = await fetch(state.base + "/v1/models", { cache: "no-store" });
+    const j = await r.json();
+    const id = (j.data && j.data[0] && j.data[0].id) || "local model";
+    state.model = id;
+    try {
+      const p = await (await fetch(state.base + "/props", { cache: "no-store" })).json();
+      state.ctx = (p.default_generation_settings && p.default_generation_settings.n_ctx) || p.n_ctx || null;
+      if (p.modalities) state.vision = !!p.modalities.vision;
+    } catch {}
+    const name = id.split(/[\\/]/).pop().replace(/\.gguf$/i, "");
+    $("#modelPill").textContent = name + (state.ctx ? " · ctx " + Math.round(state.ctx/1024) + "K" : "") + (state.vision ? " · 👁 vision" : "");
+    if (!state.busy) setStatus("ok", "ready");
+    return true;
+  } catch (e) {
+    setStatus("bad", "model offline");
+    $("#modelPill").textContent = "start-live.ps1 not running?";
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ rendering */
+let rafPending = false, lastPreview = 0;
+const live = { content: "", reasoning: "", tokens: 0, t0: 0, tFirst: 0, serverTps: null };
+
+function renderLive(force){
+  rafPending = false;
+  if (!state.busy && force !== true) return;
+  const { think, body } = splitThink(live.content);
+  const reasoning = live.reasoning + think;
+  const code = extractHtml(body) || body;
+  const codeEl = $("#code");
+  const atBottom = codeEl.scrollHeight - codeEl.scrollTop - codeEl.clientHeight < 80;
+  codeEl.textContent = code;
+  if (atBottom) codeEl.scrollTop = codeEl.scrollHeight;
+  const th = $("#think");
+  if (reasoning && $("#optThink").checked) { th.style.display = "block"; th.textContent = "💭 " + reasoning; th.scrollTop = th.scrollHeight; }
+  const lines = code ? code.split("\n").length : 0;
+  $("#sLines").textContent = lines;
+  $("#codeInfo").textContent = code ? lines + " lines · writing…" : (reasoning ? "thinking…" : "waiting for first token…");
+  updateStats();
+  const now = performance.now();
+  if ($("#optLive").checked && now - lastPreview > 1500 && /<body/i.test(code)) {
+    lastPreview = now;
+    showFrame(stripScripts(code), true);
+  }
+}
+function scheduleRender(){ if (!rafPending) { rafPending = true; requestAnimationFrame(renderLive); } }
+
+function updateStats(){
+  const now = performance.now();
+  $("#sTok").textContent = live.tokens;
+  $("#sTime").textContent = live.t0 ? fmtSecs(now - live.t0) : "0.0s";
+  $("#sTtft").textContent = live.tFirst ? fmtSecs(live.tFirst - live.t0) : "—";
+  const genSecs = live.tFirst ? (now - live.tFirst) / 1000 : 0;
+  const tps = live.serverTps || (genSecs > 0.5 ? (live.tokens - 1) / genSecs : null);
+  $("#sTps").textContent = tps ? tps.toFixed(1) : "—";
+  return tps;
+}
+
+function showFrame(html, partial){
+  $("#empty").style.display = "none";
+  $("#writingBadge").style.display = partial ? "block" : "none";
+  if (!partial) { state.errors = []; renderErrors(); }
+  $("#frame").srcdoc = partial ? html : withGuard(html);
+}
+
+function renderErrors(){
+  const box = $("#errors"); const uniq = [...new Set(state.errors)];
+  box.style.display = uniq.length ? "block" : "none";
+  box.textContent = uniq.map(e => "⚠ " + e).join("\n");
+  $("#fixErrBtn").style.display = uniq.length ? "inline-block" : "none";
+}
+window.addEventListener("message", e => {
+  if (e.source !== $("#frame").contentWindow || !e.data || !e.data.__aick) return;
+  if (state.errors.length < 50) { state.errors.push(e.data.error); renderErrors(); }
+});
+
+function renderHistory(){
+  const h = $("#hist"); h.innerHTML = "";
+  state.history.slice().reverse().forEach(b => {
+    const btn = document.createElement("button");
+    if (state.current && b.id === state.current.id) btn.className = "on";
+    btn.innerHTML = `<b></b><span></span>`;
+    btn.querySelector("b").textContent = `v${b.version} · ${b.name}`;
+    btn.querySelector("span").textContent = `${b.lines} lines · ${b.tps ? b.tps.toFixed(1) : "?"} t/s · ${fmtSecs(b.ms)}`;
+    btn.onclick = () => loadBuild(b);
+    h.appendChild(btn);
+  });
+}
+function loadBuild(b){
+  state.current = b; $("#code").textContent = b.html; $("#think").style.display = "none";
+  $("#sLines").textContent = b.lines; $("#codeInfo").textContent = `${b.lines} lines · done`;
+  $("#prevInfo").textContent = `v${b.version} · ${b.name}`;
+  showFrame(b.html, false); renderHistory(); $("#improveBtn").disabled = false;
+}
+
+/* ------------------------------------------------------------------ generation */
+async function generate(messages, meta){
+  if (state.busy) return;
+  if (!(await ping())) { toast("Model is offline. Run start-live.ps1 first."); return; }
+  state.busy = true; state.ctrl = new AbortController();
+  Object.assign(live, { content: "", reasoning: "", tokens: 0, t0: performance.now(), tFirst: 0, serverTps: null });
+  lastPreview = 0;
+  $("#buildBtn").disabled = true; $("#improveBtn").disabled = true; $("#stopBtn").disabled = false;
+  $("#code").textContent = ""; $("#think").textContent = ""; $("#think").style.display = "none";
+  $("#prevInfo").textContent = `v${meta.version} · ${meta.name} · building…`;
+  setStatus("busy", $("#optThink").checked ? "thinking…" : "writing…");
+  const ticker = setInterval(updateStats, 200);
+
+  const body = {
+    model: state.model, messages, stream: true,
+    temperature: +$("#optTemp").value, top_p: 0.95,
+    max_tokens: +$("#optMax").value,
+    stream_options: { include_usage: true },
+    chat_template_kwargs: { enable_thinking: $("#optThink").checked }
+  };
+  let stopped = false;
+  try {
+    const res = await fetch(state.base + "/v1/chat/completions", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body), signal: state.ctrl.signal
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(/image|mmproj|multimodal/i.test(t) ? "This server has no vision. Restart with: .\\start-live.ps1 -Vision" : "HTTP " + res.status + ": " + t.slice(0, 300));
+    }
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        let j; try { j = JSON.parse(data); } catch { continue; }
+        if (j.timings && j.timings.predicted_per_second) live.serverTps = j.timings.predicted_per_second;
+        const d = j.choices && j.choices[0] && j.choices[0].delta;
+        if (!d) continue;
+        if (d.reasoning_content) { live.reasoning += d.reasoning_content; live.tokens++; }
+        if (d.content) { live.content += d.content; live.tokens++; }
+        if ((d.reasoning_content || d.content) && !live.tFirst) live.tFirst = performance.now();
+        scheduleRender();
+      }
+    }
+  } catch (e) {
+    if (e.name === "AbortError") { stopped = true; }
+    else { toast(e.message); setStatus("bad", "error"); console.error(e); }
+  } finally {
+    clearInterval(ticker);
+    renderLive(true);
+    const tps = updateStats();
+    state.busy = false;
+    $("#buildBtn").disabled = false; $("#stopBtn").disabled = true;
+    const html = extractHtml(splitThink(live.content).body);
+    if (html && /<\/?(body|html|div|canvas)/i.test(html)) {
+      const b = {
+        id: Date.now(), name: meta.name, version: meta.version, rootPrompt: meta.rootPrompt,
+        html, lines: html.split("\n").length, tokens: live.tokens, ms: performance.now() - live.t0, tps,
+        partial: stopped || !/<\/html>/i.test(html)
+      };
+      state.history.push(b);
+      loadBuild(b);
+      $("#codeInfo").textContent = `${b.lines} lines · ${b.partial ? "stopped early" : "done"}`;
+      setStatus("ok", b.partial ? "stopped" : "done ✓");
+      toast(`${b.name} v${b.version}: ${b.lines} lines in ${fmtSecs(b.ms)}`);
+    } else {
+      $("#writingBadge").style.display = "none";
+      if (!stopped) setStatus("ok", "ready");
+      $("#improveBtn").disabled = !state.current;
+    }
+  }
+}
+
+function buildNew(){
+  const prompt = $("#prompt").value.trim();
+  if (!prompt) { toast("Type a prompt or pick a build first"); return; }
+  const userContent = state.image
+    ? [{ type: "text", text: prompt + "\n\nUse the attached sketch as the layout." }, { type: "image_url", image_url: { url: state.image } }]
+    : prompt;
+  const name = appName(prompt);
+  const version = state.history.filter(b => b.name === name).length + 1;
+  generate([{ role: "system", content: SYSTEM }, { role: "user", content: userContent }], { name, version, rootPrompt: prompt });
+}
+
+function improve(fb){
+  const cur = state.current; if (!cur) return;
+  let ask = (fb || $("#feedback").value.trim() || "Fix any bugs and polish the design.");
+  if (fb === "__errors__") ask = "Fix the errors below so the app runs cleanly.";
+  const errs = [...new Set(state.errors)].slice(0, 8);
+  const errText = errs.length ? "\n\nThe browser console shows these errors:\n- " + errs.join("\n- ") : "";
+  const version = Math.max(...state.history.filter(b => b.name === cur.name).map(b => b.version)) + 1;
+  generate([
+    { role: "system", content: SYSTEM },
+    { role: "user", content: cur.rootPrompt },
+    { role: "assistant", content: cur.html },
+    { role: "user", content: "Update the app: " + ask + errText + "\nReturn the COMPLETE updated HTML file only." }
+  ], { name: cur.name, version, rootPrompt: cur.rootPrompt });
+}
+
+/* ------------------------------------------------------------------ wiring */
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
+  $("#prompt").value = PRESETS[b.dataset.preset]; $("#prompt").focus();
+  if (b.dataset.preset === "chat") { const t = $("#prompt"); const s = t.value.indexOf("<APP NAME>"); t.setSelectionRange(s, s + 10); }
+});
+document.querySelectorAll("#quick [data-fb]").forEach(b => b.onclick = () => improve(b.dataset.fb));
+$("#buildBtn").onclick = buildNew;
+$("#improveBtn").onclick = () => improve();
+$("#stopBtn").onclick = () => state.ctrl && state.ctrl.abort();
+$("#optTemp").oninput = e => $("#tVal").textContent = e.target.value;
+$("#optMax").oninput = e => $("#mVal").textContent = e.target.value;
+$("#optThink").onchange = e => { if (!e.target.checked) $("#think").style.display = "none"; };
+$("#copyBtn").onclick = async () => { try { await navigator.clipboard.writeText($("#code").textContent); toast("Code copied"); } catch { toast("Copy blocked by browser"); } };
+$("#rerunBtn").onclick = () => state.current && showFrame(state.current.html, false);
+$("#openBtn").onclick = () => { if (!state.current) return; const u = URL.createObjectURL(new Blob([state.current.html], { type: "text/html" })); window.open(u, "_blank"); };
+$("#saveBtn").onclick = () => {
+  if (!state.current) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([state.current.html], { type: "text/html" }));
+  a.download = `${slug(state.current.name)}-v${state.current.version}.html`; a.click();
+  toast("Saved " + a.download);
+};
+$("#codeToggle").onclick = () => $("#work").classList.toggle("preview-only");
+$("#presentBtn").onclick = () => $("#main").classList.toggle("present");
+$("#settingsBtn").onclick = () => $("#settings").classList.toggle("show");
+$("#baseSave").onclick = () => { state.base = $("#baseInput").value.trim().replace(/\/$/, ""); try { localStorage.setItem("aick.base", state.base); } catch {} ping(); };
+$("#img").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { state.image = r.result; $("#imgPrev").src = r.result; $("#imgPrev").style.display = "block"; $("#imgName").textContent = f.name + " · click again to change"; };
+  r.readAsDataURL(f);
+};
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); buildNew(); }
+  if (e.key === "Escape" && state.busy) state.ctrl.abort();
+});
+ping(); setInterval(() => { if (!state.busy) ping(); }, 5000);
+</script>
+</body>
+</html>
